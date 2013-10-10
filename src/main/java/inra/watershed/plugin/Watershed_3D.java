@@ -26,6 +26,7 @@ import ij.ImagePlus;
 import ij.WindowManager;
 import ij.gui.GenericDialog;
 import ij.plugin.PlugIn;
+import ij.process.ImageProcessor;
 import inra.watershed.process.ComponentLabelling;
 import inra.watershed.process.RegionalMinimaFilter;
 import inra.watershed.process.WatershedTransform3D;
@@ -87,6 +88,58 @@ public class Watershed_3D implements PlugIn
 		return resultImage;
 				
 	}
+	
+	/**
+	 * Apply 3D watershed to a 2D or 3D image (it does work for 2D images too).
+	 *
+	 *
+	 * @param input the 2D or 3D image (in principle a "gradient" image)
+	 * @param seed the image to calculate the seeds from (it can be the same as the input or another one)
+	 * @param mask the mask to constraint the watershed
+	 */
+	public ImagePlus process(
+			ImagePlus input, 
+			ImagePlus seed,
+			ImagePlus mask) 
+	{
+		final long start = System.currentTimeMillis();
+		
+		IJ.log("-> Running regional minima filter...");
+		
+		RegionalMinimaFilter rmf = new RegionalMinimaFilter();
+		rmf.setup("", seed);
+		if( null != mask )
+			rmf.setMask( mask );
+		ImagePlus regionalMinima = rmf.apply();
+		
+		//regionalMinima.show();
+		
+		final long step1 = System.currentTimeMillis();
+		
+		IJ.log( "Regional minima took " + (step1-start) + " ms.");
+		
+		IJ.log("-> Running connected components...");
+		
+		ComponentLabelling cl = new ComponentLabelling( regionalMinima );
+		ImagePlus connectedMinima = cl.apply();
+		
+		//connectedMinima.show();
+		
+		final long step2 = System.currentTimeMillis();
+		IJ.log( "Connected components took " + (step2-step1) + " ms.");
+		
+		IJ.log("-> Running watershed...");
+		
+		WatershedTransform3D wt = new WatershedTransform3D( input, connectedMinima, mask );
+		ImagePlus resultImage = wt.apply();
+		
+		final long end = System.currentTimeMillis();
+		IJ.log( "Watershed 3d took " + (end-step2) + " ms.");
+		
+		return resultImage;
+				
+	}
+	
 
 	public void showAbout() {
 		IJ.showMessage("Watershed 3D",
@@ -103,32 +156,48 @@ public class Watershed_3D implements PlugIn
 	{
 		int nbima = WindowManager.getImageCount();
         String[] names = new String[ nbima ];
+        String[] namesMask = new String[ nbima + 1 ];
 
+        namesMask[ 0 ] = "None";
+        
         for (int i = 0; i < nbima; i++) 
         {
             names[ i ] = WindowManager.getImage(i + 1).getShortTitle();
-            
+            namesMask[ i + 1 ] = WindowManager.getImage(i + 1).getShortTitle();
         }
         
-        GenericDialog dia = new GenericDialog("Watershed 3D");
+        GenericDialog gd = new GenericDialog("Watershed 3D");
 
         int spot = 0;
-        int seed = nbima > 1 ? nbima - 1 : 0;
+        int seed = nbima > 1 ? 1 : 0;
         
-        dia.addChoice("Input image", names, names[spot]);
-        dia.addChoice("Image to seed from", names, names[seed]);
+        gd.addChoice( "Input image", names, names[spot] );
+        gd.addChoice( "Image to seed from", names, names[seed] );
+        gd.addChoice( "Mask", namesMask, namesMask[ nbima > 2 ? 3 : 0 ] );
 
-        dia.showDialog();
+        gd.showDialog();
         
-        if (dia.wasOKed()) 
+        if (gd.wasOKed()) 
         {
-            spot = dia.getNextChoiceIndex();
-            seed = dia.getNextChoiceIndex();
+            spot = gd.getNextChoiceIndex();
+            seed = gd.getNextChoiceIndex();
+            int maskIndex = gd.getNextChoiceIndex();
 
             ImagePlus inputImage = WindowManager.getImage(spot + 1);
             ImagePlus seedImage = WindowManager.getImage(seed + 1);
+            ImagePlus maskImage = maskIndex > 0 ? WindowManager.getImage( maskIndex ) : null;
             
-            process( inputImage, seedImage ).show();;
+            ImagePlus result = process( inputImage, seedImage, maskImage );
+            
+            // Adjust range to visualize result
+            //if( result.getImageStackSize() > 1 )
+            //	result.setSlice( result.getImageStackSize()/2 );
+            ImageProcessor ip = result.getProcessor();
+            ip.resetMinAndMax();
+            result.setDisplayRange(ip.getMin(),ip.getMax());
+            
+            // show result
+            result.show();
         }
 
         
