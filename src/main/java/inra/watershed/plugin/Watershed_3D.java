@@ -21,7 +21,7 @@ package inra.watershed.plugin;
  */
 
 import ij.IJ;
-//import ij.ImageJ;
+import ij.ImageJ;
 import ij.ImagePlus;
 import ij.WindowManager;
 import ij.gui.GenericDialog;
@@ -144,7 +144,7 @@ public class Watershed_3D implements PlugIn
 	 * @param args unused
 	 */
 	
-/*	
+	
 	public static void main(String[] args) {
 		// set the plugins.dir property to make the plugin appear in the Plugins menu
 		Class<?> clazz = Watershed_3D.class;
@@ -155,13 +155,15 @@ public class Watershed_3D implements PlugIn
 		// start ImageJ
 		new ImageJ();
 
-		// open the Clown sample
-		ImagePlus image = IJ.openImage("http://imagej.net/images/clown.jpg");
+		// open the Blobs sample
+		ImagePlus image = IJ.openImage("http://imagej.net/images/blobs.gif");
+		// get edges
+		IJ.run(image, "Find Edges", "");
 		image.show();
 
 		// run the plugin
 		IJ.runPlugIn(clazz.getName(), "");
 	}
-*/	
+	
 	
 }
