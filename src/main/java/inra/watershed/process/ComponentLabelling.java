@@ -27,18 +27,34 @@ import ij.ImagePlus;
 import ij.ImageStack;
 import ij.process.StackConverter;
 
+/**
+ * This class calculates the connected components of a binary image
+ * in 3D. This implementation is based on the C++ code by Eric Biot 
+ * at INRA, and it works as well for 2D images. 
+ *
+ */
 public class ComponentLabelling 
 {
+	/** 2D or 3D image to be processed */
 	ImagePlus inputImage = null;
-
+	/** number of current labels */
 	int numLabels = 0;
+	/** list of labels */
 	ArrayList<Integer> labelTable = null;
 
+	/**
+	 * Constructor for the connected components class
+	 * @param inputImage the binary image to use
+	 */
 	public ComponentLabelling( ImagePlus inputImage )
 	{
 		this.inputImage = inputImage;
 	}
 
+	/**
+	 * Increases the number of current labels by one
+	 * @return current number of labels
+	 */
 	int newLabel()
 	{
 		++numLabels;
@@ -48,6 +64,13 @@ public class ComponentLabelling
 		return numLabels;
 	}
 	
+	/**
+	 * Compare 3 labels and update them to the minimum one 
+	 * @param l1 label 1
+	 * @param l2 label 2
+	 * @param l3 label 3
+	 * @return minimum label between the 3
+	 */
 	int equivLabel( int l1, int l2, int l3 )
 	{
 	  int min = 0;
@@ -76,6 +99,11 @@ public class ComponentLabelling
 	  return min;
 	}
 
+	/**
+	 * Apply 2-pass connected components to the input
+	 * image with 6-voxel connectivity.
+	 * @return 32-bit image with the found connected components
+	 */
 	public ImagePlus apply()
 	{
 		ImagePlus imageOutput = inputImage.duplicate();
@@ -109,13 +137,13 @@ public class ComponentLabelling
 		IJ.showStatus( "Calculated connected components..." );
 		
 
-		// premier plan du volume, premier voxel
+		// first plane of the volume, first voxel
 		if ( outputStack.getVoxel( 0,0,0 ) != 0 )
 		{
 			outputStack.setVoxel( 0,0,0, newLabel() );
 		}
 
-		// premier plan, première ligne
+		// first plane, first column
 		k = i = 0;
 		for (j = 1 ; j < size2; ++j)
 		{
@@ -126,17 +154,17 @@ public class ComponentLabelling
 			}
 		}
 
-		// reste du premier plan
+		// rest of first plane
 		for (k = 0, i = 1; i < size1; ++i)
 		{
-			// premier pixel de la ligne
+			// first voxel in the column
 			if ( outputStack.getVoxel(i, 0, 0) != 0 )
 			{
 				v1 = (int)( outputStack.getVoxel(i-1,0,0) );
 				outputStack.setVoxel( i,0,0, v1 != 0 ? v1: newLabel() );
 			}
 
-			// autres pixels de la ligne
+			// other voxel in the column
 			for (j = 1; j < size2; ++j)
 			{
 				if ( outputStack.getVoxel( i,j,k ) != 0 )
@@ -179,8 +207,8 @@ public class ComponentLabelling
 
 
 
-		// reste des plans
-		// première ligne des autres plans du volume
+		// rest of planes
+		// first column of other planes in the volume
 		for (k = 1; k < size3; ++k)
 		{
 			for (i = 0, j = 1; j < size2; ++j)
@@ -221,12 +249,12 @@ public class ComponentLabelling
 			}
 		}
 
-		// reste des plans: autres lignes que la première
+		// rest of planes: rest of columns
 		for (k = 1; k < size3; ++k)
 		{
 			for (i = 1; i < size1; ++i)
 			{
-				// premier voxel de la ligne
+				// first voxel of the column
 				if ( outputStack.getVoxel(i,0,k) != 0 )
 				{
 					v1 = (int)( outputStack.getVoxel(i-1,0,k) );
@@ -263,7 +291,7 @@ public class ComponentLabelling
 					}
 				}
 
-				// autres voxels de la ligne
+				// other voxels of the column
 				for (j = 1; j < size2; ++j)
 				{
 					if ( outputStack.getVoxel(i,j,k) != 0 )
@@ -355,16 +383,10 @@ public class ComponentLabelling
 					}
 				}
 			}
-/*
-			this->notifyProgressed( k+1, size3 );
-			if ( this->isCanceled() )
-			{
-				return;
-			}*/
 			
 		}
 
-		// actualisation de la table d'équivalence
+		// update equivalence table
 		int numEquivalences = 0;
 		
 		for (int v = 1; v <= numLabels; v++)
@@ -381,9 +403,7 @@ public class ComponentLabelling
 		}
 		numLabels -= numEquivalences;
 
-
-		// deuxième balayage du volume matrice:
-		// actualisation par la table d'équivalence
+		// second sweep of the volume: update by equivalence table
 		for (k = 0; k < size3; k++)
 			for (i = 0; i < size1; i++)
 				for (j = 0; j < size2; j++)
