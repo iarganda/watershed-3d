@@ -1,4 +1,4 @@
-package inra.watershed;
+package inra.watershed.plugin;
 /*
  * To the extent possible under law, the Fiji developers have waived
  * all copyright and related or neighboring rights to this tutorial code.
@@ -13,6 +13,9 @@ import ij.ImagePlus;
 import ij.WindowManager;
 import ij.gui.GenericDialog;
 import ij.plugin.PlugIn;
+import inra.watershed.process.ComponentLabelling;
+import inra.watershed.process.RegionalMinimaFilter;
+import inra.watershed.process.WatershedTransform3D;
 
 
 /**

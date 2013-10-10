@@ -1,4 +1,4 @@
-package inra.watershed;
+package inra.watershed.process;
 
 public class VoxelRecord implements Comparable<VoxelRecord>{
 

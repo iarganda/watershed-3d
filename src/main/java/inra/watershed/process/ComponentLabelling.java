@@ -1,4 +1,4 @@
-package inra.watershed;
+package inra.watershed.process;
 
 import java.util.ArrayList;
 
