@@ -32,32 +32,25 @@ import inra.watershed.process.WatershedTransform3D;
 
 
 /**
- * ProcessPixels
+ * Watershed 3D
  *
- * A template for processing each pixel of either
- * GRAY8, GRAY16, GRAY32 or COLOR_RGB images.
+ * A plugin to perform watershed on a 3D image.
  *
- * @author The Fiji Team
+ * @author Ignacio Arganda-Carreras
  */
 public class Watershed_3D implements PlugIn 
 {
 
-
-
 	/**
-	 * Process an image.
+	 * Apply 3D watershed to a 2D or 3D image (it does work for 2D images too).
 	 *
-	 * Please provide this method even if {@link ij.plugin.filter.PlugInFilter} does require it;
-	 * the method {@link ij.plugin.filter.PlugInFilter#run(ij.process.ImageProcessor)} can only
-	 * handle 2-dimensional data.
 	 *
-	 * If your plugin does not change the pixels in-place, make this method return the results and
-	 * change the {@link #setup(java.lang.String, ij.ImagePlus)} method to return also the
-	 * <i>DOES_NOTHING</i> flag.
-	 *
-	 * @param image the image (possible multi-dimensional)
+	 * @param input the 2D or 3D image (in principle a "gradient" image)
+	 * @param seed the image to calculate the seeds from (it can be the same as the input or another one)
 	 */
-	public ImagePlus process(ImagePlus input, ImagePlus seed) 
+	public ImagePlus process(
+			ImagePlus input, 
+			ImagePlus seed) 
 	{
 		final long start = System.currentTimeMillis();
 		
@@ -96,12 +89,15 @@ public class Watershed_3D implements PlugIn
 	}
 
 	public void showAbout() {
-		IJ.showMessage("ProcessPixels",
-			"a template for processing each pixel of an image"
+		IJ.showMessage("Watershed 3D",
+			"a plugin for 3D watershed"
 		);
 	}
 	
 
+	/**
+	 * Run method needed to work as an ImageJ plugin 
+	 */
 	@Override
 	public void run(String arg0) 
 	{
