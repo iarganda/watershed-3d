@@ -28,6 +28,11 @@ import ij.IJ;
 import ij.ImagePlus;
 import ij.ImageStack;
 
+/**
+ * Plugin to apply watershed in 3D to an image. It allows specifying the
+ * image to extract the seeds from (using regional minima filtering) and 
+ * a mask image. 
+ */
 public class WatershedTransform3D 
 {
 	ImagePlus inputImage = null;
