@@ -32,9 +32,9 @@ import ij.process.ImageProcessor;
 
 /**
  * Class to detect the region minima from a 3D image gradient
- * with or without a binary mask
+ * with or without a binary mask. Refactored from Axel Poulet's version.
  * 
- * @author Philippe Andrey, Axel Poulet 
+ * @author Ignacio Arganda-Carreras, Philippe Andrey, Axel Poulet 
  */
 
 public class RegionalMinimaFilter implements PlugInFilter
@@ -46,10 +46,10 @@ public class RegionalMinimaFilter implements PlugInFilter
 
 
 	/**
-	 *
-	 * @param arg
-	 * @param imagePlusInput
-	 * @return
+	 * Setup method to be used as plugin filter
+	 * @param arg unused argument
+	 * @param imagePlusInput input image
+	 * @return 0
 	 */
 
 	public int setup(String arg, ImagePlus imagePlusInput)
@@ -64,7 +64,7 @@ public class RegionalMinimaFilter implements PlugInFilter
 	 * 
 	 * @param imageProcessor
 	 */
-	public void run(ImageProcessor imageProcessor){   applyWithMask(); }
+	public void run(ImageProcessor imageProcessor){   apply(); }
 
 	/**
 	 * Method used to detect the regional minima on an image.
@@ -133,7 +133,7 @@ public class RegionalMinimaFilter implements PlugInFilter
 					}
 				}
 		
-		binaryOutput.setTitle("minima_" + input.getTitle());
+		binaryOutput.setTitle("regional-minima-" + input.getTitle());
 		return binaryOutput;
 	} //applywithMask
 
@@ -175,7 +175,7 @@ public class RegionalMinimaFilter implements PlugInFilter
 			return null;
 
 		// find regional minima
-		IJ.showStatus( "Finding reginal minima..." );
+		IJ.showStatus( "Finding regional minima..." );
 		
 		for (int k = 0; k < depth; ++k)
 		{
@@ -235,7 +235,11 @@ public class RegionalMinimaFilter implements PlugInFilter
 
 		double [][][] localMinValues = new double[size1][size2][size3];
 
+		IJ.showStatus("Minimum filter 3x3x3...");
+		
 		for (int k=0; k<size3; k++)
+		{
+			IJ.showProgress(k, size3);		
 			for (int i=0; i<size1; i++)
 				for (int j=0; j<size2; j++)
 				{
@@ -249,6 +253,8 @@ public class RegionalMinimaFilter implements PlugInFilter
 
 					localMinValues[i][j][k] = minValue;
 				}
+		}
+		IJ.showProgress( 1.0 );
 		return localMinValues;
 	}//filterMin3DWithMask
 
@@ -303,12 +309,12 @@ public class RegionalMinimaFilter implements PlugInFilter
 
 	/**
 	 * Initialize a matrix of a binary mask to search the minima regions in the mask
-	 * @param imagePlusEntree Binary image 
+	 * @param mask Binary image 
 	 */
 
-	public void setMask (ImagePlus imagePlusEntree)
+	public void setMask (ImagePlus mask)
 	{
-		ImageStack labelPlus = imagePlusEntree.getStack();
+		ImageStack labelPlus = mask.getStack();
 		final int size1 = labelPlus.getWidth();
 		final int size2 = labelPlus.getHeight();
 		final int size3 = labelPlus.getSize();
