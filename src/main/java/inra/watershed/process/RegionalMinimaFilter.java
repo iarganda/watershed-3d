@@ -21,12 +21,15 @@ package inra.watershed.process;
  */
 
 import java.util.LinkedList;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import ij.IJ;
 import ij.ImagePlus;
 import ij.ImageStack;
+import ij.Prefs;
 import ij.plugin.filter.PlugInFilter;
 import ij.process.ImageProcessor;
+import ij.util.ThreadUtil;
 
 
 
@@ -267,15 +270,52 @@ public class RegionalMinimaFilter implements PlugInFilter
 		final int size1 = input.getWidth();
 		final int size2 = input.getHeight();
 		final int size3 = input.getStackSize();
-		final ImageStack imageStack= input.getStack();
+		final ImageStack stack= input.getStack();
 
-		double [][][] localMinValues = new double[size1][size2][size3];
+		final double [][][] localMinValues = new double[size1][size2][size3];
 
 		IJ.showStatus("Minimum filter 3x3x3...");
 		
-		for (int k=0; k<size3; k++)
-		{
-			IJ.showProgress(k, size3);
+		final AtomicInteger ai = new AtomicInteger(0);
+        final int n_cpus = Prefs.getThreads();
+        
+        final int dec = (int) Math.ceil((double) stack.getSize() / (double) n_cpus);
+        Thread[] threads = ThreadUtil.createThreadArray(n_cpus);
+        for (int ithread = 0; ithread < threads.length; ithread++) 
+        {
+            threads[ithread] = new Thread() {
+                public void run() {
+                	for (int k = ai.getAndIncrement(); k < n_cpus; k = ai.getAndIncrement()) 
+                	{
+                		int zmin = dec * k;
+                		int zmax = dec * ( k + 1 );
+                		if (zmin<0)
+                            zmin = 0;
+                        if (zmax>stack.getSize())
+                            zmax = stack.getSize();
+                        
+                        min3D( stack, zmin, zmax, localMinValues );
+                		
+                    }
+                }
+            };
+        }
+        ThreadUtil.startAndJoin(threads);
+		
+		
+		IJ.showProgress( 1.0 );
+		
+		return localMinValues;
+	}//filterMin3D
+
+	
+	void min3D(ImageStack imageStack, int zmin, int zmax, double[][][] localMinValues)
+	{
+		final int size1 = input.getWidth();
+		final int size2 = input.getHeight();
+		final int size3 = input.getStackSize();
+		
+		for( int k = zmin; k<zmax; k ++ )
 			for (int i=0; i<size1; i++)
 				for (int j=0; j<size2; j++)
 				{
@@ -289,13 +329,7 @@ public class RegionalMinimaFilter implements PlugInFilter
 
 					localMinValues[i][j][k] = minValue;
 				}
-		}
-		
-		IJ.showProgress( 1.0 );
-		
-		return localMinValues;
-	}//filterMin3D
-
+	}
 
 	/**
 	 * Initialize a matrix of a binary mask to search the minima regions in the mask
