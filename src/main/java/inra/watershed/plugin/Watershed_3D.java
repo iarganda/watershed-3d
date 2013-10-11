@@ -84,6 +84,7 @@ public class Watershed_3D implements PlugIn
 		
 		final long end = System.currentTimeMillis();
 		IJ.log( "Watershed 3d took " + (end-step2) + " ms.");
+		IJ.log( "Whole plugin took " + (end-start) + " ms.");
 		
 		return resultImage;
 				
@@ -135,6 +136,7 @@ public class Watershed_3D implements PlugIn
 		
 		final long end = System.currentTimeMillis();
 		IJ.log( "Watershed 3d took " + (end-step2) + " ms.");
+		IJ.log( "Whole plugin took " + (end-start) + " ms.");
 		
 		return resultImage;
 				
