@@ -27,6 +27,7 @@ import java.util.LinkedList;
 import ij.IJ;
 import ij.ImagePlus;
 import ij.ImageStack;
+import ij.process.ImageProcessor;
 
 /**
  * Plugin to apply watershed in 3D to an image. It allows specifying the
@@ -63,45 +64,56 @@ public class WatershedTransform3D
 		
 		// Make list of voxels and sort it in ascending order
 		IJ.showStatus( "Extracting voxel values..." );
+		IJ.log("  Extracting voxel values..." );
+		final long t0 = System.currentTimeMillis();
+		
 		if( null != maskImage )
 		{
 			final ImageStack mask = maskImage.getImageStack();
 			for (int k = 0; k < size3; ++k)	
 			{
 				IJ.showProgress(k, size3);
-				for (int i = 0; i < size1; ++i)
-					for (int j = 0; j < size2; ++j)
-
-						if( mask.getVoxel( i, j, k ) > 0 )
+				
+				final ImageProcessor ipMask = mask.getProcessor(k+1);
+				final ImageProcessor ipInput = inputStack.getProcessor(k+1);
+				final ImageProcessor ipSeed = seedImage.getStack().getProcessor(k+1);
+				
+				for( int i = 0; i < size1; ++i )
+					for( int j = 0; j < size2; ++j )
+						if( ipMask.getf( i, j ) > 0 )
 						{
-							voxelList.addLast( new VoxelRecord( i, j, k, inputStack.getVoxel( i, j, k )));
-							tabLabels[i][j][k] = (int) seedImage.getStack().getVoxel(i, j, k);
+							voxelList.addLast( new VoxelRecord( i, j, k, ipInput.getf( i, j )));
+							tabLabels[i][j][k] = (int) ipSeed.getf( i, j );
 						}
 			}
 			IJ.showProgress(1.0);
 		}
 		else
 		{
-			for (int k = 0; k < size3; ++k)
+			for( int k = 0; k < size3; ++k )
 			{
 				IJ.showProgress(k, size3);
-				for (int i = 0; i < size1; ++i)
-					for (int j = 0; j < size2; ++j)
-
+				
+				final ImageProcessor ipInput = inputStack.getProcessor( k + 1 );
+				final ImageProcessor ipSeed = seedImage.getStack().getProcessor( k + 1 );
+				
+				for( int i = 0; i < size1; ++i )
+					for( int j = 0; j < size2; ++j )
 					{
-						voxelList.addLast( new VoxelRecord( i, j, k, inputStack.getVoxel( i, j, k )));
-						tabLabels[i][j][k] = (int) seedImage.getStack().getVoxel(i, j, k);
+						voxelList.addLast( new VoxelRecord( i, j, k, ipInput.getf( i, j )));
+						tabLabels[i][j][k] = (int) ipSeed.getf( i, j );
 					}
 			}
 			IJ.showProgress(1.0);
 		}
-		
+						
 		final long t1 = System.currentTimeMillis();		
+		IJ.log("  Extraction took " + (t1-t0) + " ms.");
 		IJ.log("  Sorting voxels by value..." );
 		IJ.showStatus("Sorting voxels by value...");
 		Collections.sort( voxelList );
 		final long t2 = System.currentTimeMillis();
-		IJ.log("  Sorting took " + (t2-t1) + "ms.");
+		IJ.log("  Sorting took " + (t2-t1) + " ms.");
 			    
 		// Watershed
 	    boolean found = false;	    
@@ -109,7 +121,7 @@ public class WatershedTransform3D
 	    final long start = System.currentTimeMillis();
 
 	    boolean change = true;
-	    while ( voxelList.isEmpty() == false && change)
+	    while ( voxelList.isEmpty() == false && change )
 	    {
 	    	change = false;
 			final int count = voxelList.size();
@@ -156,7 +168,7 @@ public class WatershedTransform3D
 		}
 
 		final long end = System.currentTimeMillis();
-		IJ.log("  Flooding took: " + (end-start) + "ms");
+		IJ.log("  Flooding took: " + (end-start) + " ms");
 		
 		// Create result label image
 		ImageStack labelStack = seedImage.duplicate().getStack();
