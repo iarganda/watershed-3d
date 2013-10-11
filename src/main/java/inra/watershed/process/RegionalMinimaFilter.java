@@ -173,10 +173,14 @@ public class RegionalMinimaFilter implements PlugInFilter
 					binaryStackOutput.setVoxel(i, j, k, 1);
 
 		// Apply 3x3x3 minimum filter
+		IJ.log("   Minimum filtering...");
+		final long t0 = System.currentTimeMillis();
 		double[][][] localMinValues = filterMin3D( input );
 		if( null == localMinValues )
 			return null;
-
+		final long t1 = System.currentTimeMillis();
+		IJ.log("   Filtering took " + (t1-t0) + " ms.");
+		
 		// find regional minima
 		IJ.showStatus( "Finding regional minima..." );
 		
@@ -308,7 +312,13 @@ public class RegionalMinimaFilter implements PlugInFilter
 		return localMinValues;
 	}//filterMin3D
 
-	
+	/**
+	 * Apply minimum 3D filter to a set of slices in a stack
+	 * @param imageStack input stack
+	 * @param zmin first slice to process (>=0)
+	 * @param zmax maximum slice to process (< num of slices)
+	 * @param localMinValues 3D matrix to fill with the results
+	 */
 	void min3D(ImageStack imageStack, int zmin, int zmax, double[][][] localMinValues)
 	{
 		final int size1 = input.getWidth();
@@ -316,19 +326,26 @@ public class RegionalMinimaFilter implements PlugInFilter
 		final int size3 = input.getStackSize();
 		
 		for( int k = zmin; k<zmax; k ++ )
+		{
+			final ImageProcessor ip = imageStack.getProcessor( k + 1 );
 			for (int i=0; i<size1; i++)
 				for (int j=0; j<size2; j++)
 				{
-					double minValue = imageStack.getVoxel(i, j, k);
+					double minValue = ip.getf( i, j );
 					for (int ii = i-1; ii <= i+1; ++ii)             	
 						for (int jj = j-1; jj <= j+1; ++jj)
 							for (int kk = k-1; kk <= k+1; ++kk)
-								if ( ii >= 0 && ii < size1 && jj >= 0 && jj < size2 && kk >= 0 && kk < size3 )
-									if ( imageStack.getVoxel(ii, jj, kk)<minValue )
-										minValue = imageStack.getVoxel(ii, jj, kk);
-
+								if ( ii >= 0 && ii < size1 && 
+									 jj >= 0 && jj < size2 && 
+									 kk >= 0 && kk < size3 ) 
+									 {
+										final double value = imageStack.getVoxel( ii, jj, kk );
+										if( value < minValue )
+											minValue = value;
+									 }
 					localMinValues[i][j][k] = minValue;
 				}
+		}
 	}
 
 	/**
@@ -345,7 +362,6 @@ public class RegionalMinimaFilter implements PlugInFilter
 	 * Initialize a matrix of a binary mask to search the minima regions in the mask
 	 * @param mask Binary image 
 	 */
-
 	public void setMask (ImagePlus mask)
 	{
 		ImageStack labelPlus = mask.getStack();
