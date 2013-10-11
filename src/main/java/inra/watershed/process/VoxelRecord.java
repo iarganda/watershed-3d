@@ -57,10 +57,6 @@ public class VoxelRecord implements Comparable<VoxelRecord>{
 		@Override
 		public int compareTo(VoxelRecord voxelRecord) 
 		{
-			if ( value < voxelRecord.value ) 
-		    	return -1;
-			if ( value > voxelRecord.value )
-				return 1;			  
-			return 0;		    		   
+			return Double.compare( value, voxelRecord.value );	    		   
 		}
 }
