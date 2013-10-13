@@ -25,6 +25,7 @@ import java.util.ArrayList;
 import ij.IJ;
 import ij.ImagePlus;
 import ij.ImageStack;
+import ij.process.ImageProcessor;
 import ij.process.StackConverter;
 
 /**
@@ -113,10 +114,16 @@ public class ComponentLabelling
 			if( imageOutput.getImageStackSize() > 1 )
 				(new StackConverter( imageOutput )).convertToGray32();
 			else
+			{
+				ImageProcessor ip = imageOutput.getProcessor();
+				ip.resetMinAndMax();	// important not to lose the ones
+										// in the conversion
 				imageOutput = new ImagePlus( imageOutput.getTitle(), 
-						imageOutput.getProcessor().convertToFloat() );
+						 						ip.convertToFloat());
+			}
 					
 		}
+		
 		final ImageStack outputStack = imageOutput.getStack();
 		
 		
