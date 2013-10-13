@@ -19,8 +19,6 @@ package inra.watershed.process;
  *
  * Authors: Ignacio Arganda-Carreras, Philippe Andrey, Axel Poulet
  */
-
-
 public class VoxelRecord implements Comparable<VoxelRecord>{
 
 		int i = 0;
