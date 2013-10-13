@@ -141,12 +141,11 @@ public class RegionalMinimaFilter implements PlugInFilter
 	} //applywithMask
 
 
-
 	/**
 	 * 
 	 * Method used to detect the regional minima on an image.
 	 * All the regional minima voxels will be output as 1, while
-	 * the rest of voxels will be 0.
+	 * the rest of voxels will be 0 (multi-threaded).
 	 * 
 	 * @return regional minima binary image
 	 */
@@ -155,13 +154,12 @@ public class RegionalMinimaFilter implements PlugInFilter
 		final int width = input.getWidth();
 		final int height = input.getHeight();
 		final int depth = input.getStackSize();
-		int kcurrent, icurrent, jcurrent;
 
-		LinkedList<VoxelRecord> voxelList = new LinkedList<VoxelRecord>();
+		//final ImagePlus imageOutput = input.duplicate();
+		//final ImageStack imageStackOutput = imageOutput.getStack();
 
-		final ImagePlus imageOutput = input.duplicate();
-		final ImageStack imageStackOutput = imageOutput.getStack();
-
+		final ImageStack inputStack = input.getStack();
+		
 		final ImagePlus binaryOutput = input.duplicate();
 		final ImageStack binaryStackOutput = binaryOutput.getStack();
 
@@ -175,7 +173,7 @@ public class RegionalMinimaFilter implements PlugInFilter
 		// Apply 3x3x3 minimum filter
 		IJ.log("   Minimum filtering...");
 		final long t0 = System.currentTimeMillis();
-		double[][][] localMinValues = filterMin3D( input );
+		final double[][][] localMinValues = filterMin3D( input );
 		if( null == localMinValues )
 			return null;
 		final long t1 = System.currentTimeMillis();
@@ -184,20 +182,82 @@ public class RegionalMinimaFilter implements PlugInFilter
 		// find regional minima
 		IJ.showStatus( "Finding regional minima..." );
 		
-		for (int k = 0; k < depth; ++k)
+		final AtomicInteger ai = new AtomicInteger(0);
+        final int n_cpus = Prefs.getThreads();
+        
+        final int dec = (int) Math.ceil((double) depth / (double) n_cpus);
+        
+        Thread[] threads = ThreadUtil.createThreadArray(n_cpus);
+        for (int ithread = 0; ithread < threads.length; ithread++) 
+        {
+            threads[ithread] = new Thread() {
+                public void run() {
+                	for (int k = ai.getAndIncrement(); k < n_cpus; k = ai.getAndIncrement()) 
+                	{
+                		int zmin = dec * k;
+                		int zmax = dec * ( k + 1 );
+                		if (zmin<0)
+                            zmin = 0;
+                        if (zmax > depth)
+                            zmax = depth;
+                        
+                        findMinimaRange( zmin, zmax, inputStack,
+                				binaryStackOutput, localMinValues );
+                		
+                    }
+                }
+            };
+        }
+        ThreadUtil.startAndJoin(threads);
+		
+
+		IJ.showProgress(1.0);
+		
+		//(new ImagePlus("valued minima", imageStackOutput)).show();
+		
+		return new ImagePlus("regional-minima-" + input.getTitle(), binaryStackOutput);
+	} //applyMT
+
+	/**
+	 * Find regional minima in a range of slices
+	 * @param zmin minimum slice to process (zmin >= 0)
+	 * @param zmax maximum slice to process (zmax < depth)
+	 * @param inputStack original stack
+	 * @param binaryStackOutput output stack with binary values (1s for regional minima)
+	 * @param localMinValues filtered original values (by a 3x3x3 minimum filter)
+	 */
+	private void findMinimaRange(
+			final int zmin, 
+			final int zmax, 
+			final ImageStack inputStack,
+			final ImageStack binaryStackOutput, 
+			double[][][] localMinValues) 
+	{
+		final int width = inputStack.getWidth();
+		final int height = inputStack.getHeight();
+		final int depth = inputStack.getSize();
+		int kcurrent;
+		int icurrent;
+		int jcurrent;
+		final LinkedList<VoxelRecord> voxelList = new LinkedList<VoxelRecord>();
+		
+		for (int k = zmin; k < zmax; ++k)
 		{
-			IJ.showProgress(k, depth);
+			if (zmin==0) 
+				IJ.showProgress(k+1, zmax);
+			
 			for (int i = 0; i < width; ++i)
 				for (int j = 0; j < height; ++j)
 				{
-					double currentValue = imageStackOutput.getVoxel(i,j,k);
-					double currentValueMin = localMinValues[i][j][k];
-					if ( currentValue > 0 &&  currentValue != currentValueMin )
+					double currentValue = inputStack.getVoxel( i, j, k );
+					double currentLabel = binaryStackOutput.getVoxel( i, j, k );
+					double currentValueMin = localMinValues[ i ][ j ][ k ];
+					if ( currentLabel > 0 && currentValue != currentValueMin )
 					{
-						imageStackOutput.setVoxel(i, j, k, 0);
+						//imageStackOutput.setVoxel(i, j, k, 0);
 						binaryStackOutput.setVoxel(i, j, k, 0);
 						
-						voxelList.addLast( new VoxelRecord(i, j, k, 0) );
+						voxelList.addLast( new VoxelRecord( i, j, k, 0 ) );
 						while ( voxelList.size() > 0 )
 						{
 							VoxelRecord voxelRecord = voxelList.removeFirst();
@@ -209,25 +269,17 @@ public class RegionalMinimaFilter implements PlugInFilter
 								for (int ii = icurrent - 1; ii <= icurrent+1; ++ii)
 									for (int jj = jcurrent - 1; jj <= jcurrent+1; ++jj)
 										if ( kk >= 0 && kk < depth && ii >= 0 && ii < width && jj >= 0 && jj < height )
-											if ( imageStackOutput.getVoxel(ii,jj,kk) == currentValue )
+											if ( inputStack.getVoxel( ii, jj, kk ) == currentValue && binaryStackOutput.getVoxel( ii, jj, kk ) > 0)
 											{
-												imageStackOutput.setVoxel(ii, jj, kk, 0);
-												binaryStackOutput.setVoxel(ii, jj, kk, 0);
+												binaryStackOutput.setVoxel( ii, jj, kk, 0 );
 												voxelList.addLast( new VoxelRecord(ii, jj, kk, 0) );
 											}
 						}
 					}
 				}
 		}
-		
-		IJ.showProgress(1.0);
-		
-		//(new ImagePlus("valued minima", imageStackOutput)).show();
-		
-		return new ImagePlus("regional-minima-" + input.getTitle(), binaryStackOutput);
-	} //apply
-
-
+	}
+	
 
 	/**
 	 * Filter minimum in 3D with a neighboring 3
@@ -327,6 +379,8 @@ public class RegionalMinimaFilter implements PlugInFilter
 		
 		for( int k = zmin; k<zmax; k ++ )
 		{
+			if (zmin==0) 
+				IJ.showProgress(k+1, zmax);
 			final ImageProcessor ip = imageStack.getProcessor( k + 1 );
 			for (int i=0; i<size1; i++)
 				for (int j=0; j<size2; j++)
