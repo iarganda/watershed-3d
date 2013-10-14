@@ -23,6 +23,7 @@ package inra.watershed.process;
 
 import java.util.Collections;
 import java.util.LinkedList;
+import java.util.PriorityQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import ij.IJ;
@@ -42,6 +43,8 @@ public class WatershedTransform3D
 	ImagePlus inputImage = null;
 	ImagePlus seedImage = null;
 	ImagePlus maskImage = null;
+	
+	static final int INQUEUE = -3;
 	
 	public WatershedTransform3D(
 			final ImagePlus input,
@@ -111,7 +114,7 @@ public class WatershedTransform3D
 				if( tabLabels[ i ][ j ][ k ] == 0 )
 	       		{
 			       	found = false;
-			       	double voxelValue = inputStack.getVoxel( i, j, k );
+			       	double voxelValue = voxelRecord.value;
 			       	// Look in neighborhood for labeled voxels with
 			       	// smaller or equal original value
 			       	for (int u = i-1; u <= i+1; ++u) 
@@ -148,6 +151,203 @@ public class WatershedTransform3D
 	        for (int k = 0; k < size3; ++k)
 	            labelStack.setVoxel( i, j, k, tabLabels[i][j][k] );
 	    return new ImagePlus( "watershed", labelStack );
+	}
+
+	
+	/**
+	 * Apply watershed transform on inputImage, using the seeds 
+	 * from seedImage and the mask of maskImage.
+	 * @return watershed domains image
+	 */
+	public ImagePlus applyWithPriorityQueue()
+	{
+		final ImageStack inputStack = inputImage.getStack();
+	    final int size1 = inputStack.getWidth();
+	    final int size2 = inputStack.getHeight();
+	    final int size3 = inputStack.getSize();
+	    
+		// list of original voxels values and corresponding coordinates
+		PriorityQueue<VoxelRecord> voxelList = null;
+		
+		final int[][][] tabLabels = new int[ size1 ][ size2 ][ size3 ]; 
+		
+		// Make list of voxels and sort it in ascending order
+		IJ.showStatus( "Extracting voxel values..." );
+		IJ.log("  Extracting voxel values..." );
+		final long t0 = System.currentTimeMillis();
+		
+		voxelList = extractVoxelValuesPriorityQueue( inputStack, seedImage.getStack(), tabLabels );
+						
+		final long t1 = System.currentTimeMillis();		
+		IJ.log("  Extraction took " + (t1-t0) + " ms.");
+					    
+		// Watershed
+	    final long start = System.currentTimeMillis();
+
+	    final int count = voxelList.size();
+	    IJ.log( "  Flooding from " + count + " voxels..." );
+      	IJ.showStatus("Flooding from " + count + " voxels...");
+	    
+      	final int numVoxels = size1 * size2 * size3;
+      	
+      	while ( voxelList.isEmpty() == false )
+      	{
+      		IJ.showProgress( numVoxels-voxelList.size(), numVoxels );
+      		
+      		final VoxelRecord voxelRecord = voxelList.poll();
+      		final int[] coord = voxelRecord.getCoordinates();
+      		final int i = coord[0];
+      		final int j = coord[1];
+      		final int k = coord[2];
+
+     
+      		double voxelValue = voxelRecord.value; //inputStack.getVoxel( i, j, k );
+
+      		// Look in neighborhood 
+      		for (int u = i-1; u <= i+1; ++u) 
+      			for (int v = j-1; v <= j+1; ++v) 
+      				for (int w = k-1; w <= k+1; ++w) 
+      				{
+      					if ( u >= 0 && u < size1 && v >= 0 && v < size2 && w >= 0 && w < size3 )
+      					{
+      						// Unlabeled neighbors go into the queue if they are not there yet 
+      						if ( tabLabels[u][v][w] == 0 )
+      						{
+      							voxelList.add( new VoxelRecord( u, v, w, inputStack.getVoxel(u,v,w) ));
+      							tabLabels[u][v][w] = INQUEUE;
+      						}
+      						else if ( tabLabels[u][v][w] > 0 && inputStack.getVoxel(u,v,w) <= voxelValue )
+      						{
+      							// assign label of smallest neighbor
+      							tabLabels[i][j][k] = tabLabels[u][v][w];
+      							voxelValue = inputStack.getVoxel(u,v,w);
+      						}
+      					}
+      				}    
+
+      	}
+
+		final long end = System.currentTimeMillis();
+		IJ.log("  Flooding took: " + (end-start) + " ms");
+		
+		// Create result label image
+		ImageStack labelStack = seedImage.duplicate().getStack();
+	    
+	    for (int i = 0; i < size1; ++i)
+	      for (int j = 0; j < size2; ++j)
+	        for (int k = 0; k < size3; ++k)
+	            labelStack.setVoxel( i, j, k, tabLabels[i][j][k] );
+	    return new ImagePlus( "watershed", labelStack );
+	}
+	
+	/**
+	 * Extract voxel values from input and seed images
+	 * 
+	 * @param inputStack input stack
+	 * @param seedStack seed stack
+	 * @param tabLabels output label array
+	 * @return priority queque of voxels neighboring the seeds
+	 */
+	public PriorityQueue<VoxelRecord> extractVoxelValuesPriorityQueue(
+			final ImageStack inputStack,
+			final ImageStack seedStack,
+			final int[][][] tabLabels) 
+	{
+		
+		final int size1 = inputStack.getWidth();
+	    final int size2 = inputStack.getHeight();
+	    final int size3 = inputStack.getSize();
+		
+	            
+        final PriorityQueue<VoxelRecord> voxelList = new PriorityQueue<VoxelRecord>();
+	    
+		if( null != maskImage )
+		{
+			final ImageStack mask = maskImage.getImageStack();
+
+			
+			
+			for (int z = 0; z < size3; ++z)	
+			{
+				IJ.showProgress( z+1, size3 );
+
+				final ImageProcessor ipMask = mask.getProcessor( z+1 );
+				final ImageProcessor ipSeed = seedStack.getProcessor( z+1 );
+
+				for( int x = 0; x < size1; ++x )
+					for( int y = 0; y < size2; ++y )
+						if( ipMask.getf( x, y ) > 0 )
+						{
+							int label = (int) ipSeed.getf( x, y );
+							if( label > 0 )
+							{
+								// add unlabeled neighbors to priority queue
+								for (int u = x-1; u <= x+1; ++u) 
+									for (int v = y-1; v <= y+1; ++v) 
+										for (int w = z-1; w <= z+1; ++w) 
+										{
+											if ( u >= 0 && u < size1 && 
+													v >= 0 && v < size2 && 
+													w >= 0 && w < size3 &&
+													(int) seedStack.getVoxel( u, v, w ) == 0 &&
+													tabLabels[ u ][ v ][ w ] != INQUEUE )															 
+											{
+												voxelList.add( new VoxelRecord( u, v, w, inputStack.getVoxel( u, v, w ) ) );
+												tabLabels[ u ][ v ][ w ] = INQUEUE;
+											}
+
+										}
+								tabLabels[x][y][z] = label;
+							}
+
+							
+						}
+			}
+
+		}
+					
+							
+		else
+		{
+			for (int z = 0; z < size3; ++z)	
+			{
+				IJ.showProgress( z+1, size3 );
+
+				final ImageProcessor ipSeed = seedStack.getProcessor( z+1 );
+
+				for( int x = 0; x < size1; ++x )
+					for( int y = 0; y < size2; ++y )
+					{
+						int label = (int) ipSeed.getf( x, y );
+						if( label > 0 )
+						{
+							// add unlabeled neighbors to priority queue
+							for (int u = x-1; u <= x+1; ++u) 
+								for (int v = y-1; v <= y+1; ++v) 
+									for (int w = z-1; w <= z+1; ++w) 
+									{
+										if ( u >= 0 && u < size1 && 
+												v >= 0 && v < size2 && 
+												w >= 0 && w < size3 &&
+												(int) seedStack.getVoxel( u, v, w ) == 0 &&
+												tabLabels[ u ][ v ][ w ] != INQUEUE )															 
+										{
+											voxelList.add( new VoxelRecord( u, v, w, inputStack.getVoxel( u, v, w ) ) );
+											tabLabels[ u ][ v ][ w ] = INQUEUE;
+										}
+
+									}
+							tabLabels[x][y][z] = label;
+						}
+					}
+			}
+
+		}
+
+
+		IJ.showProgress(1.0);
+
+		return voxelList;
 	}
 
 	/**
@@ -268,5 +468,8 @@ public class WatershedTransform3D
 		
 		return voxelList;
 	}
+
+	
+	
 	
 }
