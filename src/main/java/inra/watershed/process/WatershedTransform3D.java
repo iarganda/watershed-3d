@@ -246,7 +246,7 @@ public class WatershedTransform3D
 	 * @param inputStack input stack
 	 * @param seedStack seed stack
 	 * @param tabLabels output label array
-	 * @return priority queque of voxels neighboring the seeds
+	 * @return priority queue of voxels neighboring the seeds
 	 */
 	public PriorityQueue<VoxelRecord> extractVoxelValuesPriorityQueue(
 			final ImageStack inputStack,
@@ -304,10 +304,8 @@ public class WatershedTransform3D
 						}
 			}
 
-		}
-					
-							
-		else
+		}							
+		else // without mask
 		{
 			for (int z = 0; z < size3; ++z)	
 			{
@@ -443,7 +441,7 @@ public class WatershedTransform3D
 									IJ.showProgress(z+1, zmax);
 
 								final ImageProcessor ipInput = inputStack.getProcessor( z+1 );
-								final ImageProcessor ipSeed = seedImage.getStack().getProcessor( z+1 );
+								final ImageProcessor ipSeed = seedStack.getProcessor( z+1 );
 
 								for( int x = 0; x < size1; ++x )
 									for( int y = 0; y < size2; ++y )
