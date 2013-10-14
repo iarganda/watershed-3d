@@ -23,11 +23,14 @@ package inra.watershed.process;
 
 import java.util.Collections;
 import java.util.LinkedList;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import ij.IJ;
 import ij.ImagePlus;
 import ij.ImageStack;
+import ij.Prefs;
 import ij.process.ImageProcessor;
+import ij.util.ThreadUtil;
 
 /**
  * Plugin to apply watershed in 3D to an image. It allows specifying the
@@ -50,6 +53,11 @@ public class WatershedTransform3D
 		this.maskImage = mask;
 	}
 	
+	/**
+	 * Apply watershed transform on inputImage, using the seeds 
+	 * from seedImage and the mask of maskImage.
+	 * @return watershed domains image
+	 */
 	public ImagePlus apply()
 	{
 		final ImageStack inputStack = inputImage.getStack();
@@ -58,7 +66,7 @@ public class WatershedTransform3D
 	    final int size3 = inputStack.getSize();
 	    
 		// list of original voxels values and corresponding coordinates
-		LinkedList<VoxelRecord> voxelList = new LinkedList<VoxelRecord>();
+		LinkedList<VoxelRecord> voxelList = null;
 		
 		final int[][][] tabLabels = new int[ size1 ][ size2 ][ size3 ]; 
 		
@@ -67,45 +75,7 @@ public class WatershedTransform3D
 		IJ.log("  Extracting voxel values..." );
 		final long t0 = System.currentTimeMillis();
 		
-		if( null != maskImage )
-		{
-			final ImageStack mask = maskImage.getImageStack();
-			for (int k = 0; k < size3; ++k)	
-			{
-				IJ.showProgress(k, size3);
-				
-				final ImageProcessor ipMask = mask.getProcessor(k+1);
-				final ImageProcessor ipInput = inputStack.getProcessor(k+1);
-				final ImageProcessor ipSeed = seedImage.getStack().getProcessor(k+1);
-				
-				for( int i = 0; i < size1; ++i )
-					for( int j = 0; j < size2; ++j )
-						if( ipMask.getf( i, j ) > 0 )
-						{
-							voxelList.addLast( new VoxelRecord( i, j, k, ipInput.getf( i, j )));
-							tabLabels[i][j][k] = (int) ipSeed.getf( i, j );
-						}
-			}
-			IJ.showProgress(1.0);
-		}
-		else
-		{
-			for( int k = 0; k < size3; ++k )
-			{
-				IJ.showProgress(k, size3);
-				
-				final ImageProcessor ipInput = inputStack.getProcessor( k + 1 );
-				final ImageProcessor ipSeed = seedImage.getStack().getProcessor( k + 1 );
-				
-				for( int i = 0; i < size1; ++i )
-					for( int j = 0; j < size2; ++j )
-					{
-						voxelList.addLast( new VoxelRecord( i, j, k, ipInput.getf( i, j )));
-						tabLabels[i][j][k] = (int) ipSeed.getf( i, j );
-					}
-			}
-			IJ.showProgress(1.0);
-		}
+		voxelList = extractVoxelValues( inputStack, seedImage.getStack(), tabLabels );
 						
 		final long t1 = System.currentTimeMillis();		
 		IJ.log("  Extraction took " + (t1-t0) + " ms.");
@@ -179,4 +149,124 @@ public class WatershedTransform3D
 	            labelStack.setVoxel( i, j, k, tabLabels[i][j][k] );
 	    return new ImagePlus( "watershed", labelStack );
 	}
+
+	/**
+	 * Extract voxel values from input and seed images
+	 * 
+	 * @param inputStack input stack
+	 * @param seedStack seed stack
+	 * @param tabLabels output label array
+	 * @return list of input voxel values
+	 */
+	public LinkedList<VoxelRecord> extractVoxelValues(
+			final ImageStack inputStack,
+			final ImageStack seedStack,
+			final int[][][] tabLabels) 
+	{
+		
+		final int size1 = inputStack.getWidth();
+	    final int size2 = inputStack.getHeight();
+	    final int size3 = inputStack.getSize();
+		
+	    final AtomicInteger ai = new AtomicInteger(0);
+        final int n_cpus = Prefs.getThreads();
+        
+        final int dec = (int) Math.ceil((double) size3 / (double) n_cpus);
+        
+        Thread[] threads = ThreadUtil.createThreadArray( n_cpus );
+        
+        final LinkedList<VoxelRecord>[] lists = new LinkedList[ n_cpus ];
+	    
+		if( null != maskImage )
+		{
+			final ImageStack mask = maskImage.getImageStack();
+			
+			for (int ithread = 0; ithread < threads.length; ithread++) 
+			{
+				lists[ ithread ] = new LinkedList<VoxelRecord>();
+				
+				threads[ithread] = new Thread() {
+					public void run() {
+						for (int k = ai.getAndIncrement(); k < n_cpus; k = ai.getAndIncrement()) 
+						{
+							int zmin = dec * k;
+							int zmax = dec * ( k + 1 );
+							if (zmin<0)
+								zmin = 0;
+							if (zmax > size3)
+								zmax = size3;
+
+							for (int z = zmin; z < zmax; ++z)	
+							{
+								if (zmin==0) 
+									IJ.showProgress(z+1, zmax);
+
+								final ImageProcessor ipMask = mask.getProcessor( z+1 );
+								final ImageProcessor ipInput = inputStack.getProcessor( z+1 );
+								final ImageProcessor ipSeed = seedStack.getProcessor( z+1 );
+
+								for( int x = 0; x < size1; ++x )
+									for( int y = 0; y < size2; ++y )
+										if( ipMask.getf( x, y ) > 0 )
+										{
+											lists[k].addLast( new VoxelRecord( x, y, z, ipInput.getf( x, y )));
+											tabLabels[x][y][z] = (int) ipSeed.getf( x, y );
+										}
+							}
+
+						}
+					}
+				};
+			}
+			ThreadUtil.startAndJoin(threads);			
+		}
+		else
+		{
+			for (int ithread = 0; ithread < threads.length; ithread++) 
+			{
+				lists[ ithread ] = new LinkedList<VoxelRecord>();
+				
+				threads[ithread] = new Thread() {
+					public void run() {
+						for (int k = ai.getAndIncrement(); k < n_cpus; k = ai.getAndIncrement()) 
+						{
+							int zmin = dec * k;
+							int zmax = dec * ( k + 1 );
+							if (zmin<0)
+								zmin = 0;
+							if (zmax > size3)
+								zmax = size3;
+
+							for (int z = zmin; z < zmax; ++z)	
+							{
+								if (zmin==0) 
+									IJ.showProgress(z+1, zmax);
+
+								final ImageProcessor ipInput = inputStack.getProcessor( z+1 );
+								final ImageProcessor ipSeed = seedImage.getStack().getProcessor( z+1 );
+
+								for( int x = 0; x < size1; ++x )
+									for( int y = 0; y < size2; ++y )
+									{
+										lists[k].addLast( new VoxelRecord( x, y, z, ipInput.getf( x, y )));
+										tabLabels[x][y][z] = (int) ipSeed.getf( x, y );
+									}
+							}
+
+						}
+					}
+				};
+			}
+			ThreadUtil.startAndJoin(threads);			
+		}
+		
+		final LinkedList<VoxelRecord> voxelList = lists[ 0 ];
+		for (int ithread = 1; ithread < threads.length; ithread++)
+			voxelList.addAll(lists[ ithread ]);
+		
+		IJ.showProgress(1.0);
+		
+		return voxelList;
+	}
+	
 }
