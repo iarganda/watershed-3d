@@ -41,6 +41,8 @@ import inra.watershed.process.WatershedTransform3D;
  */
 public class Watershed_3D implements PlugIn 
 {
+	
+	public boolean usePriorityQueue = false;
 
 	/**
 	 * Apply 3D watershed to a 2D or 3D image (it does work for 2D images too).
@@ -124,7 +126,7 @@ public class Watershed_3D implements PlugIn
 		ComponentLabelling cl = new ComponentLabelling( regionalMinima );
 		ImagePlus connectedMinima = cl.apply();
 		
-		//connectedMinima.show();
+		connectedMinima.show();
 		
 		final long step2 = System.currentTimeMillis();
 		IJ.log( "Connected components took " + (step2-step1) + " ms.");
@@ -132,7 +134,7 @@ public class Watershed_3D implements PlugIn
 		IJ.log("-> Running watershed...");
 		
 		WatershedTransform3D wt = new WatershedTransform3D( input, connectedMinima, mask );
-		ImagePlus resultImage = wt.apply();
+		ImagePlus resultImage = usePriorityQueue == false ? wt.apply() : wt.applyWithPriorityQueue();
 		
 		final long end = System.currentTimeMillis();
 		IJ.log( "Watershed 3d took " + (end-step2) + " ms.");
@@ -176,6 +178,7 @@ public class Watershed_3D implements PlugIn
         gd.addChoice( "Input image", names, names[spot] );
         gd.addChoice( "Image to seed from", names, names[seed] );
         gd.addChoice( "Mask", namesMask, namesMask[ nbima > 2 ? 3 : 0 ] );
+        gd.addCheckbox( "Use priority queue", usePriorityQueue );
 
         gd.showDialog();
         
@@ -184,6 +187,7 @@ public class Watershed_3D implements PlugIn
             spot = gd.getNextChoiceIndex();
             seed = gd.getNextChoiceIndex();
             int maskIndex = gd.getNextChoiceIndex();
+            usePriorityQueue = gd.getNextBoolean();
 
             ImagePlus inputImage = WindowManager.getImage(spot + 1);
             ImagePlus seedImage = WindowManager.getImage(seed + 1);
