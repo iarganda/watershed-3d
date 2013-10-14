@@ -70,78 +70,6 @@ public class RegionalMinimaFilter implements PlugInFilter
 	public void run(ImageProcessor imageProcessor){   apply(); }
 
 	/**
-	 * Method used to detect the regional minima on an image.
-	 * All the regional minima voxels will be output as 1, while
-	 * the rest of voxels will be 0.
-	 * 
-	 * @param imagePlus Image to be processed
-	 * @return regional minima binary image
-	 */
-	public ImagePlus applyWithMask()
-	{
-		final double width = input.getWidth();
-		final double height = input.getHeight();
-		final double depth = input.getStackSize();
-		int kcurrent, icurrent, jcurrent;
-
-		LinkedList<VoxelRecord> voxelList = new LinkedList<VoxelRecord>();
-
-		final ImagePlus imageOutput = input.duplicate();
-		final ImageStack imageStackOutput = imageOutput.getStack();
-
-		final ImagePlus binaryOutput = input.duplicate();
-		final ImageStack binaryStackOutput = imageOutput.getStack();
-
-		// Initialize binary output image
-		// Binarize output image
-		for (int k = 0; k < depth; ++k)
-			for (int i = 0; i < width; ++i)
-				for (int j = 0; j < height; ++j)	        	  
-					binaryStackOutput.setVoxel(i, j, k, 1);
-
-		// Apply 3x3x3 minimum filter
-		double[][][] localMinValues = filterMin3DWithMask( input );
-		if( null == localMinValues )
-			return null;
-
-		// find regional minima
-		for (int k = 0; k < depth; ++k)
-			for (int i = 0; i < width; ++i)
-				for (int j = 0; j < height; ++j)
-				{
-					double currentValue = imageStackOutput.getVoxel(i,j,k);
-					double currentValueMin = localMinValues[i][j][k];
-					if ( currentValue > 0 &&  currentValue != currentValueMin && tabMask[i][j][k]>0)
-					{
-						imageStackOutput.setVoxel(i, j, k, 0);
-						voxelList.addLast( new VoxelRecord(i, j, k, 0) );
-						while ( voxelList.size() > 0 )
-						{
-							VoxelRecord voxelRecord = voxelList.removeFirst();
-							icurrent = voxelRecord.getI();
-							jcurrent = voxelRecord.getJ();
-							kcurrent = voxelRecord.getK();
-
-							for (int kk = kcurrent - 1; kk <= kcurrent+1; ++kk)
-								for (int ii = icurrent - 1; ii <= icurrent+1; ++ii)
-									for (int jj = jcurrent - 1; jj <= jcurrent+1; ++jj)
-										if ( kk >= 0 && kk < depth && ii >= 0 && ii < width && jj >= 0 && jj < height  && tabMask[ii][jj][kk]>0)
-											if ( imageStackOutput.getVoxel(ii,jj,kk) == currentValue )
-											{
-												imageStackOutput.setVoxel(ii, jj, kk, 0);
-												binaryStackOutput.setVoxel(ii, jj, kk, 0);
-												voxelList.addLast( new VoxelRecord(ii, jj, kk, 0) );
-											}
-						}
-					}
-				}
-		
-		binaryOutput.setTitle("regional-minima-" + input.getTitle());
-		return binaryOutput;
-	} //applywithMask
-
-
-	/**
 	 * 
 	 * Method used to detect the regional minima on an image.
 	 * All the regional minima voxels will be output as 1, while
@@ -216,7 +144,85 @@ public class RegionalMinimaFilter implements PlugInFilter
 		//(new ImagePlus("valued minima", imageStackOutput)).show();
 		
 		return new ImagePlus("regional-minima-" + input.getTitle(), binaryStackOutput);
-	} //applyMT
+	} //apply
+	
+	/**
+	 * 
+	 * Method used to detect the regional minima on an image.
+	 * All the regional minima voxels will be output as 1, while
+	 * the rest of voxels will be 0 (multi-threaded).
+	 * 
+	 * @return regional minima binary image
+	 */
+	public ImagePlus applyWithMask()
+	{
+		final int width = input.getWidth();
+		final int height = input.getHeight();
+		final int depth = input.getStackSize();
+
+		//final ImagePlus imageOutput = input.duplicate();
+		//final ImageStack imageStackOutput = imageOutput.getStack();
+
+		final ImageStack inputStack = input.getStack();
+		
+		final ImagePlus binaryOutput = input.duplicate();
+		final ImageStack binaryStackOutput = binaryOutput.getStack();
+
+		// Initialize binary output image
+		// Binarize output image
+		for (int k = 0; k < depth; ++k)
+			for (int i = 0; i < width; ++i)
+				for (int j = 0; j < height; ++j)	        	  
+					binaryStackOutput.setVoxel(i, j, k, 1);
+
+		// Apply 3x3x3 minimum filter
+		IJ.log("   Minimum filtering...");
+		final long t0 = System.currentTimeMillis();
+		final double[][][] localMinValues = filterMin3D( input );
+		if( null == localMinValues )
+			return null;
+		final long t1 = System.currentTimeMillis();
+		IJ.log("   Filtering took " + (t1-t0) + " ms.");
+		
+		// find regional minima
+		IJ.showStatus( "Finding regional minima..." );
+		
+		final AtomicInteger ai = new AtomicInteger(0);
+        final int n_cpus = Prefs.getThreads();
+        
+        final int dec = (int) Math.ceil((double) depth / (double) n_cpus);
+        
+        Thread[] threads = ThreadUtil.createThreadArray(n_cpus);
+        for (int ithread = 0; ithread < threads.length; ithread++) 
+        {
+            threads[ithread] = new Thread() {
+                public void run() {
+                	for (int k = ai.getAndIncrement(); k < n_cpus; k = ai.getAndIncrement()) 
+                	{
+                		int zmin = dec * k;
+                		int zmax = dec * ( k + 1 );
+                		if (zmin<0)
+                            zmin = 0;
+                        if (zmax > depth)
+                            zmax = depth;
+                        
+                        findMinimaRange( zmin, zmax, inputStack,
+                				binaryStackOutput, localMinValues, tabMask );
+                		
+                    }
+                }
+            };
+        }
+        ThreadUtil.startAndJoin(threads);
+		
+
+		IJ.showProgress(1.0);
+		
+		//(new ImagePlus("valued minima", imageStackOutput)).show();
+		
+		return new ImagePlus("regional-minima-" + input.getTitle(), binaryStackOutput);
+	} //apply
+	
 
 	/**
 	 * Find regional minima in a range of slices
@@ -269,6 +275,70 @@ public class RegionalMinimaFilter implements PlugInFilter
 								for (int ii = icurrent - 1; ii <= icurrent+1; ++ii)
 									for (int jj = jcurrent - 1; jj <= jcurrent+1; ++jj)
 										if ( kk >= 0 && kk < depth && ii >= 0 && ii < width && jj >= 0 && jj < height )
+											if ( inputStack.getVoxel( ii, jj, kk ) == currentValue && binaryStackOutput.getVoxel( ii, jj, kk ) > 0)
+											{
+												binaryStackOutput.setVoxel( ii, jj, kk, 0 );
+												voxelList.addLast( new VoxelRecord(ii, jj, kk, 0) );
+											}
+						}
+					}
+				}
+		}
+	}
+	
+	/**
+	 * Find regional minima in a range of slices
+	 * @param zmin minimum slice to process (zmin >= 0)
+	 * @param zmax maximum slice to process (zmax < depth)
+	 * @param inputStack original stack
+	 * @param binaryStackOutput output stack with binary values (1s for regional minima)
+	 * @param localMinValues filtered original values (by a 3x3x3 minimum filter)
+	 * @param tabMask the binary mask to select the are of interest
+	 */
+	private void findMinimaRange(
+			final int zmin, 
+			final int zmax, 
+			final ImageStack inputStack,
+			final ImageStack binaryStackOutput, 
+			final double[][][] localMinValues,
+			final double[][][] tabMask) 
+	{
+		final int width = inputStack.getWidth();
+		final int height = inputStack.getHeight();
+		final int depth = inputStack.getSize();
+		int kcurrent;
+		int icurrent;
+		int jcurrent;
+		final LinkedList<VoxelRecord> voxelList = new LinkedList<VoxelRecord>();
+		
+		for (int k = zmin; k < zmax; ++k)
+		{
+			if (zmin==0) 
+				IJ.showProgress(k+1, zmax);
+			
+			for (int i = 0; i < width; ++i)
+				for (int j = 0; j < height; ++j)
+				{
+					double currentValue = inputStack.getVoxel( i, j, k );
+					double currentLabel = binaryStackOutput.getVoxel( i, j, k );
+					double currentValueMin = localMinValues[ i ][ j ][ k ];
+					if ( currentLabel > 0 && currentValue != currentValueMin )
+					{
+						//imageStackOutput.setVoxel(i, j, k, 0);
+						binaryStackOutput.setVoxel(i, j, k, 0);
+						
+						voxelList.addLast( new VoxelRecord( i, j, k, 0 ) );
+						while ( voxelList.size() > 0 )
+						{
+							VoxelRecord voxelRecord = voxelList.removeFirst();
+							icurrent = voxelRecord.getI();
+							jcurrent = voxelRecord.getJ();
+							kcurrent = voxelRecord.getK();
+
+							for (int kk = kcurrent - 1; kk <= kcurrent+1; ++kk)
+								for (int ii = icurrent - 1; ii <= icurrent+1; ++ii)
+									for (int jj = jcurrent - 1; jj <= jcurrent+1; ++jj)
+										if ( kk >= 0 && kk < depth && ii >= 0 && ii < width && jj >= 0 && jj < height && tabMask[ii][jj][kk] > 0 )
 											if ( inputStack.getVoxel( ii, jj, kk ) == currentValue && binaryStackOutput.getVoxel( ii, jj, kk ) > 0)
 											{
 												binaryStackOutput.setVoxel( ii, jj, kk, 0 );
