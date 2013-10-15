@@ -126,7 +126,7 @@ public class Watershed_3D implements PlugIn
 		ComponentLabelling cl = new ComponentLabelling( regionalMinima );
 		ImagePlus connectedMinima = cl.apply();
 		
-		connectedMinima.show();
+		//connectedMinima.show();
 		
 		final long step2 = System.currentTimeMillis();
 		IJ.log( "Connected components took " + (step2-step1) + " ms.");
