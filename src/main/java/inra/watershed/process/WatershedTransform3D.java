@@ -190,41 +190,86 @@ public class WatershedTransform3D
 	    
       	final int numVoxels = size1 * size2 * size3;
       	
-      	while ( voxelList.isEmpty() == false )
+      	// with mask
+      	if ( null != maskImage )
       	{
-      		IJ.showProgress( numVoxels-voxelList.size(), numVoxels );
+      		final ImageStack maskStack = maskImage.getStack();
       		
-      		final VoxelRecord voxelRecord = voxelList.poll();
-      		final int[] coord = voxelRecord.getCoordinates();
-      		final int i = coord[0];
-      		final int j = coord[1];
-      		final int k = coord[2];
+      		while ( voxelList.isEmpty() == false )
+      		{
+      			IJ.showProgress( numVoxels-voxelList.size(), numVoxels );
 
-     
-      		double voxelValue = voxelRecord.value; //inputStack.getVoxel( i, j, k );
+      			final VoxelRecord voxelRecord = voxelList.poll();
+      			final int[] coord = voxelRecord.getCoordinates();
+      			final int i = coord[0];
+      			final int j = coord[1];
+      			final int k = coord[2];
 
-      		// Look in neighborhood 
-      		for (int u = i-1; u <= i+1; ++u) 
-      			for (int v = j-1; v <= j+1; ++v) 
-      				for (int w = k-1; w <= k+1; ++w) 
-      				{
-      					if ( u >= 0 && u < size1 && v >= 0 && v < size2 && w >= 0 && w < size3 )
+
+      			double voxelValue = voxelRecord.value; //inputStack.getVoxel( i, j, k );
+
+      			// Look in neighborhood 
+      			for (int u = i-1; u <= i+1; ++u) 
+      				for (int v = j-1; v <= j+1; ++v) 
+      					for (int w = k-1; w <= k+1; ++w) 
       					{
-      						// Unlabeled neighbors go into the queue if they are not there yet 
-      						if ( tabLabels[u][v][w] == 0 )
+      						if ( u >= 0 && u < size1 && v >= 0 && v < size2 && w >= 0 && w < size3 )
       						{
-      							voxelList.add( new VoxelRecord( u, v, w, inputStack.getVoxel(u,v,w) ));
-      							tabLabels[u][v][w] = INQUEUE;
+      							// Unlabeled neighbors go into the queue if they are not there yet 
+      							if ( tabLabels[u][v][w] == 0 && maskStack.getVoxel(u, v, w) > 0)
+      							{
+      								voxelList.add( new VoxelRecord( u, v, w, inputStack.getVoxel(u,v,w) ));
+      								tabLabels[u][v][w] = INQUEUE;
+      							}
+      							else if ( tabLabels[u][v][w] > 0 && inputStack.getVoxel(u,v,w) <= voxelValue )
+      							{
+      								// assign label of smallest neighbor
+      								tabLabels[i][j][k] = tabLabels[u][v][w];
+      								voxelValue = inputStack.getVoxel(u,v,w);
+      							}
       						}
-      						else if ( tabLabels[u][v][w] > 0 && inputStack.getVoxel(u,v,w) <= voxelValue )
-      						{
-      							// assign label of smallest neighbor
-      							tabLabels[i][j][k] = tabLabels[u][v][w];
-      							voxelValue = inputStack.getVoxel(u,v,w);
-      						}
-      					}
-      				}    
+      					}    
 
+      		}
+      	}
+      	else // without mask
+      	{
+      		while ( voxelList.isEmpty() == false )
+      		{
+      			IJ.showProgress( numVoxels-voxelList.size(), numVoxels );
+
+      			final VoxelRecord voxelRecord = voxelList.poll();
+      			final int[] coord = voxelRecord.getCoordinates();
+      			final int i = coord[0];
+      			final int j = coord[1];
+      			final int k = coord[2];
+
+
+      			double voxelValue = voxelRecord.value; //inputStack.getVoxel( i, j, k );
+
+      			// Look in neighborhood 
+      			for (int u = i-1; u <= i+1; ++u) 
+      				for (int v = j-1; v <= j+1; ++v) 
+      					for (int w = k-1; w <= k+1; ++w) 
+      					{
+      						if ( u >= 0 && u < size1 && v >= 0 && v < size2 && w >= 0 && w < size3 )
+      						{
+      							// Unlabeled neighbors go into the queue if they are not there yet 
+      							if ( tabLabels[u][v][w] == 0 )
+      							{
+      								voxelList.add( new VoxelRecord( u, v, w, inputStack.getVoxel(u,v,w) ));
+      								tabLabels[u][v][w] = INQUEUE;
+      							}
+      							else if ( tabLabels[u][v][w] > 0 && inputStack.getVoxel(u,v,w) <= voxelValue )
+      							{
+      								// assign label of smallest neighbor
+      								tabLabels[i][j][k] = tabLabels[u][v][w];
+      								voxelValue = inputStack.getVoxel(u,v,w);
+      							}
+      						}
+      					}    
+
+      		}
       	}
 
 		final long end = System.currentTimeMillis();
@@ -261,12 +306,10 @@ public class WatershedTransform3D
 	            
         final PriorityQueue<VoxelRecord> voxelList = new PriorityQueue<VoxelRecord>();
 	    
-		if( null != maskImage )
+		if( null != maskImage ) // apply mask
 		{
 			final ImageStack mask = maskImage.getImageStack();
-
-			
-			
+						
 			for (int z = 0; z < size3; ++z)	
 			{
 				IJ.showProgress( z+1, size3 );
@@ -299,11 +342,8 @@ public class WatershedTransform3D
 										}
 								tabLabels[x][y][z] = label;
 							}
-
-							
 						}
 			}
-
 		}							
 		else // without mask
 		{
