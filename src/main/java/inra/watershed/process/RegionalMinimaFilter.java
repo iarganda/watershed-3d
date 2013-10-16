@@ -27,7 +27,6 @@ import ij.IJ;
 import ij.ImagePlus;
 import ij.ImageStack;
 import ij.Prefs;
-import ij.plugin.filter.PlugInFilter;
 import ij.process.ImageProcessor;
 import ij.util.ThreadUtil;
 
@@ -40,7 +39,7 @@ import ij.util.ThreadUtil;
  * @author Ignacio Arganda-Carreras, Philippe Andrey, Axel Poulet 
  */
 
-public class RegionalMinimaFilter implements PlugInFilter
+public class RegionalMinimaFilter
 {
 	/** image to process */
 	private ImagePlus input;
@@ -48,27 +47,11 @@ public class RegionalMinimaFilter implements PlugInFilter
 	private double tabMask[][][] = null;
 
 
-	/**
-	 * Setup method to be used as plugin filter
-	 * @param arg unused argument
-	 * @param imagePlusInput input image
-	 * @return 0
-	 */
-
-	public int setup(String arg, ImagePlus imagePlusInput)
+	public RegionalMinimaFilter( ImagePlus input )
 	{
-		this.input = imagePlusInput;
-		//return DOES_8G;// + STACK_REQUIRED;
-		return 0;
+		this.input = input;
 	}
-
-	/**
-	 * To run the plugin with imageJ
-	 * 
-	 * @param imageProcessor
-	 */
-	public void run(ImageProcessor imageProcessor){   apply(); }
-
+	
 	/**
 	 * 
 	 * Method used to detect the regional minima on an image.
