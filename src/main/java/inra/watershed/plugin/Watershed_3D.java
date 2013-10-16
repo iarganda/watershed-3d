@@ -59,8 +59,7 @@ public class Watershed_3D implements PlugIn
 		
 		IJ.log("-> Running regional minima filter...");
 		
-		RegionalMinimaFilter rmf = new RegionalMinimaFilter();
-		rmf.setup("", seed);
+		RegionalMinimaFilter rmf = new RegionalMinimaFilter( seed );
 		ImagePlus regionalMinima = rmf.apply();
 		
 		//regionalMinima.show();
@@ -82,7 +81,7 @@ public class Watershed_3D implements PlugIn
 		IJ.log("-> Running watershed...");
 		
 		WatershedTransform3D wt = new WatershedTransform3D(input, connectedMinima, null);
-		ImagePlus resultImage = wt.apply();
+		ImagePlus resultImage = usePriorityQueue == false ? wt.apply() : wt.applyWithPriorityQueue();
 		
 		final long end = System.currentTimeMillis();
 		IJ.log( "Watershed 3d took " + (end-step2) + " ms.");
@@ -109,8 +108,7 @@ public class Watershed_3D implements PlugIn
 		
 		IJ.log("-> Running regional minima filter...");
 		
-		RegionalMinimaFilter rmf = new RegionalMinimaFilter();
-		rmf.setup("", seed);
+		RegionalMinimaFilter rmf = new RegionalMinimaFilter( seed );
 		if( null != mask )
 			rmf.setMask( mask );
 		ImagePlus regionalMinima = rmf.apply();
@@ -159,6 +157,14 @@ public class Watershed_3D implements PlugIn
 	public void run(String arg0) 
 	{
 		int nbima = WindowManager.getImageCount();
+		
+		if( nbima == 0 )
+		{
+			IJ.error( "Watershed 3D", 
+					"At least one image needs to be open to run waterhsed in 3D");
+			return;
+		}
+		
         String[] names = new String[ nbima ];
         String[] namesMask = new String[ nbima + 1 ];
 
