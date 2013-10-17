@@ -94,7 +94,10 @@ public class GeodesicReconstruction
 		  						if ( u >= 0 && u < size1 && v >= 0 && v < size2 && w >= 0 && w < size3 )
 		  						{
 		  							if( maxStack.getVoxel(u, v, w) < 1 )
+		  							{
 		  								q.addLast( new int[]{ i, j, k } );
+		  								break;
+		  							}
 		  						}
 		  					}
 				}
