@@ -161,7 +161,7 @@ public class Watershed_3D implements PlugIn
 		if( nbima == 0 )
 		{
 			IJ.error( "Watershed 3D", 
-					"At least one image needs to be open to run waterhsed in 3D");
+					"ERROR: At least one image needs to be open to run watershed in 3D");
 			return;
 		}
 		
