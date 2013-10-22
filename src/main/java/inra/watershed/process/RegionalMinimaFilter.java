@@ -126,7 +126,11 @@ public class RegionalMinimaFilter
 		
 		//(new ImagePlus("valued minima", imageStackOutput)).show();
 		
-		return new ImagePlus("regional-minima-" + input.getTitle(), binaryStackOutput);
+		ImagePlus output = new ImagePlus("regional-minima-" + input.getTitle(), binaryStackOutput);
+		
+		output.setCalibration( input.getCalibration() );
+		
+		return output;
 	} //apply
 	
 	/**
@@ -203,7 +207,11 @@ public class RegionalMinimaFilter
 		
 		//(new ImagePlus("valued minima", imageStackOutput)).show();
 		
-		return new ImagePlus("regional-minima-" + input.getTitle(), binaryStackOutput);
+		ImagePlus output = new ImagePlus("regional-minima-" + input.getTitle(), binaryStackOutput);
+		
+		output.setCalibration( input.getCalibration() );
+		
+		return output;
 	} //apply
 	
 
