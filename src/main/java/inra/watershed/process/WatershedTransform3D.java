@@ -150,7 +150,9 @@ public class WatershedTransform3D
 	      for (int j = 0; j < size2; ++j)
 	        for (int k = 0; k < size3; ++k)
 	            labelStack.setVoxel( i, j, k, tabLabels[i][j][k] );
-	    return new ImagePlus( "watershed", labelStack );
+	    final ImagePlus ws = new ImagePlus( "watershed", labelStack );
+	    ws.setCalibration( inputImage.getCalibration() );
+	    return ws;
 	}
 
 	
@@ -282,7 +284,9 @@ public class WatershedTransform3D
 	      for (int j = 0; j < size2; ++j)
 	        for (int k = 0; k < size3; ++k)
 	            labelStack.setVoxel( i, j, k, tabLabels[i][j][k] );
-	    return new ImagePlus( "watershed", labelStack );
+	    final ImagePlus ws = new ImagePlus( "watershed", labelStack );
+	    ws.setCalibration( inputImage.getCalibration() );
+	    return ws;
 	}
 	
 	/**
